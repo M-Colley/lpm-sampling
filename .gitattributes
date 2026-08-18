@@ -1,0 +1,8 @@
+# Keep shell scripts LF even when checked out on Windows with autocrlf=true.
+# Git Bash refuses a script whose shebang line ends in CRLF ("$'\r': command
+# not found"), so run_comparison.sh would break on a fresh Windows clone.
+*.sh text eol=lf
+
+# Same reasoning for the R and Python drivers the harness runs.
+*.R text eol=lf
+*.py text eol=lf

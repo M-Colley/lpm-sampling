@@ -17,11 +17,19 @@ cd compare_with_r
 ./run_comparison.sh 5000        # replicates per implementation per variant
 ```
 
-That builds a shared frame, draws with both implementations, and prints the
-comparison. Installing the R package, if needed:
+That builds a shared frame, runs the deterministic checks, draws with both
+implementations, and prints the comparison. It installs the R package itself if
+it is missing:
 
 ```r
 install.packages("BalancedSampling")
+```
+
+The script finds the interpreters itself, including R's default Windows install
+location. Override either if they live somewhere unusual:
+
+```bash
+PYTHON=/path/to/python RSCRIPT=/path/to/Rscript ./run_comparison.sh 5000
 ```
 
 ## What is compared, and why not the samples themselves
@@ -31,7 +39,20 @@ versus R's Mersenne-Twister), consume randomness in a different order, and break
 nearest-neighbour ties differently. **No seed can align them**, and identical
 output would be evidence of a broken harness rather than of correctness.
 
-What must agree is the design each one realises:
+Two things *can* be compared exactly, and are checked first, because they are
+deterministic functions of their inputs rather than draws:
+
+0. **The shared functions.** `spatial_balance` against `sb`, over 200 fixed
+   samples ranging from well spread to deliberately clumped; and `pi_from_size`
+   against `getPips`, over 12 size distributions whose skew forces the
+   certainty-unit capping iteration to run zero, one and many rounds. Both must
+   agree to floating point. The first is a precondition for test 3 below: that
+   test compares the two samplers *using spatial balance as the yardstick*,
+   which is only fair if both sides agree on what the yardstick measures.
+   Samples cross the boundary as 0/1 masks, so the 0-based / 1-based index
+   convention gap cannot silently shift one.
+
+Beyond those, what must agree is the design each one realises:
 
 1. **First-order inclusion probabilities.** Each implementation's empirical
    selection frequency per unit, against the prescribed `pi`, in units of Monte
@@ -47,6 +68,16 @@ What must agree is the design each one realises:
    with a large p-value is the expected result; a large mean difference with a
    tiny p-value would be the real finding — the implementations would then
    differ in how they spread, not merely in their RNG.
+4. **Spatial dependence between units.** Moran's I of each implementation's
+   per-unit deviation from `pi`, under 8-nearest-neighbour weights. Tests 1-3
+   look at marginal frequencies and at the balance distribution; neither looks
+   at how selections are correlated *between* neighbours, which is the defining
+   property of the method. Both implementations should come out negative —
+   neighbours compete for the same mass, so a unit over-selected in a finite run
+   leaves its neighbours under-selected — and, more to the point, they should
+   agree with each other. Note that testing I against an exchangeable
+   permutation null is the wrong test here: it rejects for both implementations,
+   because the correlation is a property of the design rather than a defect.
 
 With 5,000 replicates the Monte Carlo standard error on a unit with `pi = 0.1`
 is about 0.004, so differences below roughly 1% of `pi` are not resolvable. Use

@@ -80,7 +80,7 @@ the realised inclusion probabilities are no longer the ones you assigned, and
 every design weight becomes fiction. Filter the frame first; your sample then
 represents the filtered frame, and you say so.
 
-## Reference implementation and how to check this one
+## Reference implementation, and how this one measures up against it
 
 The method's authors maintain the R package
 [BalancedSampling](https://github.com/envisim/BalancedSampling) (AGPL-3), which
@@ -96,16 +96,63 @@ cd compare_with_r
 ./run_comparison.sh 5000
 ```
 
-The two implementations use different random number generators and break ties
-differently, so identical samples are impossible — identical output would in
-fact be suspicious. What must agree is the *design*, so the harness compares:
+### Results
 
-1. whether each implementation realises the prescribed inclusion probabilities
-   (per-unit z against Monte Carlo standard error);
-2. whether the two are consistent with the same design (paired z over all
-   units);
-3. whether they spread equally well (Kolmogorov–Smirnov on the distribution of
-   the spatial balance index).
+Against **BalancedSampling 2.1.1** on R 4.6.0, with Python 3.13 and numpy 2.4.6,
+on an Intel Core Ultra 7 155H. The frame is 300 clustered units drawing 30 with
+probability proportional to size; 5,000 replicates per implementation per
+variant.
+
+Two of the shared functions are deterministic, so they can be compared exactly
+rather than statistically — same inputs, so the outputs must simply match:
+
+| Deterministic check | Coverage | Result |
+|---|---|---|
+| `spatial_balance` vs `sb` | 200 fixed samples, spanning balance 0.098 to 6.36 | max relative difference 3.5 × 10⁻¹⁵ |
+| `pi_from_size` vs `getPips` | 12 size distributions, 197 certainty units capped in total | max absolute difference 1.6 × 10⁻¹⁵ |
+
+Both agree to floating point. The first is a precondition for the spread test
+below, which uses spatial balance as its yardstick: that comparison is only
+fair if both sides agree on what the yardstick measures.
+
+The samplers themselves cannot be compared draw for draw. They use different
+random number generators, consume randomness in a different order, and break
+nearest-neighbour ties differently, so **no seed can align them** — identical
+output would indicate a broken harness, not correctness. What must agree is the
+design:
+
+| Design check | LPM2 | LPM1 | Expected |
+|---|---|---|---|
+| Realises `pi` — mean z², this package | 1.012 | 0.968 | 1.0 |
+| Realises `pi` — mean z², BalancedSampling | 0.898 | 1.129 | 1.0 |
+| Same design — paired mean z² over 300 units | 0.982 | 1.042 | ~1.0 |
+| Mean spatial balance, this package | 0.21045 | 0.19805 | — |
+| Mean spatial balance, BalancedSampling | 0.21103 | 0.19799 | — |
+| Difference in mean balance | −0.3 % | 0.0 % | ~0 % |
+| Kolmogorov–Smirnov on the balance distribution | D = 0.023, p = 0.15 | D = 0.012, p = 0.89 | p not small |
+| Moran's I of (freq − `pi`), this package | −0.077 | −0.063 | negative, same size as below |
+| Moran's I of (freq − `pi`), BalancedSampling | −0.063 | −0.085 | — |
+
+Both realise the prescribed inclusion probabilities, both are consistent with
+the same design, and their spread distributions are statistically
+indistinguishable. The largest single deviation seen — one unit at 3.8 standard
+errors under LPM2 — is Monte Carlo noise: re-running with a different seed moves
+it to 0.5, and deviations across units show no relationship with `pi`.
+
+The per-unit deviations *are* negatively autocorrelated in space, and that is
+worth reading correctly: it is the signature of spatial balance, not a
+discrepancy. Neighbours compete for the same probability mass, so a unit
+over-selected in a finite run leaves its neighbours under-selected. Each
+implementation shows it alone, at the same magnitude — which is why the test
+compares the two columns against each other rather than against zero. Testing
+Moran's I against an exchangeable permutation null rejects for *both*
+implementations and demonstrates nothing.
+
+The reference is far faster per draw: 0.23 ms against 8.2 ms for LPM2, and
+0.63 ms against 19.0 ms for LPM1. BalancedSampling is C++ via Rcpp with a k-d
+tree; this package is numpy with a Python loop per pivot. If you need the
+throughput, use theirs — the point of this one is that it is pure numpy, MIT,
+and gives the same design.
 
 ## Reference
 
@@ -126,10 +173,15 @@ Related, for the diagnostics and the alternative design:
 ## Performance
 
 Nearest neighbours are found by brute force over the units still in play, which
-shrinks by at least one per iteration. A frame of 8,856 units drawing 150 takes
-about 0.2 s; 300 units drawing 30 takes about 2 ms. Beyond ~10⁴ units a k-d tree
-over the active set would be worth adding — the bottleneck is Python loop
-overhead per pivot, not the vectorised distance computation.
+shrinks by at least one per iteration. On the Intel Core Ultra 7 155H used for
+the comparison above, a frame of 8,856 units drawing 150 takes about 0.7 s, and
+300 units drawing 30 about 8 ms; a faster core cuts both by several times, so
+treat these as a scale rather than a specification. Computing `spatial_balance`
+afterwards is negligible beside the draw — 0.08 ms on the 300-unit frame.
+
+Beyond ~10⁴ units a k-d tree over the active set would be worth adding — the
+bottleneck is Python loop overhead per pivot, not the vectorised distance
+computation.
 
 ## Licence
 
