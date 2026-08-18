@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lpm-sampling"
+version = "0.1.0"
+description = "Spatially balanced probability sampling in Python: the Local Pivotal Method (LPM1/LPM2), probabilities proportional to size, and spatial balance diagnostics."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Mark Colley" }]
+keywords = [
+    "sampling", "survey-sampling", "spatially-balanced", "local-pivotal-method",
+    "lpm", "grts", "probability-proportional-to-size", "spatial-statistics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = ["numpy>=1.22"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "flake8", "ruff"]
+
+[project.urls]
+Homepage = "https://github.com/M-Colley/lpm-sampling"
+Issues = "https://github.com/M-Colley/lpm-sampling/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lpm_sampling"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+# Pinned so a checkout lints identically everywhere, rather than inheriting
+# whatever rule set the contributor's machine happens to default to.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+# The test and example drivers put ../src on sys.path before importing the
+# package, so imports genuinely cannot all sit at the top of the file.
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+"examples/*" = ["E402"]
+"compare_with_r/*" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

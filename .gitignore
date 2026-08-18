@@ -1,0 +1,10 @@
+build/
+compare_with_r/frames/
+compare_with_r/results/
+dist/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
